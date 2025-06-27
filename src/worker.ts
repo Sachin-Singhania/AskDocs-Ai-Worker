@@ -8,7 +8,8 @@ import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { Document } from "@langchain/core/documents";
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-
+import { configDotenv } from "dotenv";
+configDotenv();
 if (!process.env.APIKEY) {
   throw new Error("APIKEY is not set in the environment variables");
 }
@@ -316,7 +317,7 @@ export async function run(url:string) {
   }
 }
 // run("https://solana.com/docs");
-ask("What is life?")
+// ask("What is life?")
 
 
 async function pdfUPLOAD() {
@@ -331,7 +332,7 @@ const splitDocs = await splitter.splitDocuments(docs);
 
 const embeddings= new GoogleGenerativeAIEmbeddings({
     modelName: 'text-embedding-004',
-    apiKey: 'AIzaSyDp1TIHNuVXFKB9kk9TjkLS9q6PGqzA_O0',
+    apiKey: process.env.APIKEY,
 })
 
 
