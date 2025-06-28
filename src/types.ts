@@ -1,3 +1,3 @@
 type URL_TASK ={ url: string, type:"url" }
-type PDF_TASK ={ name : string , path: string, type:"pdf" }
+type PDF_TASK ={ name : string , path: string, type:"pdf",key:string }
     
