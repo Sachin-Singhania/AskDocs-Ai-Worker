@@ -17,6 +17,7 @@
     "@langchain/core": "^0.3.61",
     "@langchain/google-genai": "^0.2.13",
     "@langchain/qdrant": "^0.1.2",
+    "@prisma/client": "^6.10.1",
     "@qdrant/js-client-rest": "^1.14.1",
     "@types/uuid": "^10.0.0",
     "dotenv": "^16.6.0",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.4",
-    "@types/redis": "^4.0.10"
+    "@types/redis": "^4.0.10",
+    "prisma": "^6.10.1"
   }
 }

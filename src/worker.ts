@@ -11,6 +11,8 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { configDotenv } from "dotenv";
 import { Readable } from "stream";
 import { dirname } from "path";
+import { processUpdate } from "./utility";
+import { Status } from "./types";
 configDotenv();
 if (!process.env.APIKEY) {
   throw new Error("APIKEY is not set in the environment variables");
@@ -56,6 +58,7 @@ async function Getalldocsdata(url:string) {
       }
     } catch (error) {
       console.log(error);
+      throw new Error(`Error fetching content from ${urlObj.hostname}: ${error}`);
     }
     await browser.close();
 
@@ -108,37 +111,42 @@ function getDocumentsFromContent(contentlist: { [key: string]: string }): Docume
   return docs;
 }
 async function getCollectionName(web_url:string): Promise<string> {
-  const systemPrompt = `You are an Ai collection name sorter for qdrant. Give the collection name for the given url source.
-  RULES:
-  - The response should be in JSON format with a single key "content" and the value should be the collection name.
-  Example: 
-    ME: "https://chaidocs.vercel.app/youtube/chai-aur-devops/nginx-rate-limiting/",
-    You : {"content" : "chaidocs" }
-    ME: "https://solana.com/docs",
-    You : {"content" : "solana" }
-    ME : "https://developer.mozilla.org/en-US/docs/Web/API/URL"
-    You : {"content" : "mozilla" }
-
-  `
- const model = ai.getGenerativeModel({
-  model: "gemini-2.0-flash",
-  generationConfig: {
-    temperature: 1.5,
-    responseMimeType: "application/json",
-  },
-  systemInstruction: {
-    role: "system",
-    parts: [{ text: systemPrompt }],
+  try {
+    const systemPrompt = `You are an Ai collection name sorter for qdrant. Give the collection name for the given url source.
+    RULES:
+    - The response should be in JSON format with a single key "content" and the value should be the collection name.
+    Example: 
+      ME: "https://chaidocs.vercel.app/youtube/chai-aur-devops/nginx-rate-limiting/",
+      You : {"content" : "chaidocs" }
+      ME: "https://solana.com/docs",
+      You : {"content" : "solana" }
+      ME : "https://developer.mozilla.org/en-US/docs/Web/API/URL"
+      You : {"content" : "mozilla" }
+  
+    `
+   const model = ai.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    generationConfig: {
+      temperature: 1.5,
+      responseMimeType: "application/json",
+    },
+    systemInstruction: {
+      role: "system",
+      parts: [{ text: systemPrompt }],
+    }
+  });
+    const {response} = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: web_url }] }],
+  });
+    const final:{
+      content: string;
+    } = JSON.parse(response.text().trim());
+    console.log("RESPONSE", final.content);
+    return final.content;
+  } catch (error) {
+    console.error("Error generating collection name:", error);
+    throw new Error(`Error generating collection name: ${error}`);
   }
-});
-  const {response} = await model.generateContent({
-  contents: [{ role: "user", parts: [{ text: web_url }] }],
-});
-  const final:{
-    content: string;
-  } = JSON.parse(response.text().trim());
-  console.log("RESPONSE", final.content);
-  return final.content;
 }
 async function storeToqdrant(collectionName:string, documentArray:Document<Record<string, any>>[]) {
     try {
@@ -151,19 +159,26 @@ async function storeToqdrant(collectionName:string, documentArray:Document<Recor
        )
         console.log(`Stored  documents in Qdrant collection: ${collectionName}`);
     } catch (error) {
-        
+        console.error(`Error storing documents in Qdrant collection ${collectionName}:`, error);
+        throw new Error(`Error storing documents in Qdrant: ${error}`);
     }
 }
-export async function run(url:string) {
+export async function run(url:string,chatId:string) {
   try {
+    await processUpdate(chatId, "PROCESSING" as Status);
+
     const contentlist = await Getalldocsdata(url);
     // const docs = loadobject(uri);
+    if (Object.keys(contentlist).length === 0) {
+       throw new Error(`No content found at the URL: ${url}`);
+    }
     const docs = getDocumentsFromContent(contentlist);
     const collectionName = await getCollectionName(url);
     await storeToqdrant(collectionName, docs);
     return{
       Status: true,
       message : "docs stored successfully",
+      collectionName
     }
   } catch (error:any) {
      console.error(error);
@@ -176,14 +191,17 @@ export async function run(url:string) {
 
 
 
-export async function pdfUPLOAD(name:string,path:string,key:string) {
+export async function pdfUPLOAD(name:string,path:string,key:string,chatId:string) {
  try {
+    await processUpdate(chatId, "PROCESSING" as Status);
+   
    const outputPath = `./temp/${name+key}`;
    const res=  await downloadPdfFromS3(key,outputPath);
    console.log(res);
+   
    if (!fs.existsSync(outputPath)) {
-     console.error(`File not found at path: ${outputPath}`);
-     return { Status: false, message: `File not found at path: ${outputPath}` };
+      console.error(`File not found at path: ${outputPath}`);
+      throw new Error(`File not found at path: ${outputPath}`);
     }
     const loader=new PDFLoader(outputPath)
     const docs= await loader.load();
@@ -199,7 +217,7 @@ export async function pdfUPLOAD(name:string,path:string,key:string) {
       apiKey: process.env.APIKEY,
     })
     
-    const collectionName= name+key.slice(0,6);
+    const collectionName= name+"-"+key.slice(0,6);
     await QdrantVectorStore.fromDocuments(
       splitDocs,
       embeddings,
@@ -211,13 +229,9 @@ export async function pdfUPLOAD(name:string,path:string,key:string) {
   fs.unlinkSync(outputPath);
   console.log(`Temporary file ${outputPath} deleted successfully.`);
   
-  const {message ,status}= await deletePdfFromS3(key);
-  if (!status) {
-    console.error(message);
-    return { Status: false, message };
-  }
-  
-  return { Status: true, message: `PDF processed and stored successfully in Qdrant collection: chai-docs` };
+  const {message}= await deletePdfFromS3(key);
+  console.log(message);
+  return { Status: true, message: `PDF processed and stored successfully in Qdrant collection: chai-docs` ,collectionName};
  } catch (error: any) {
   console.error(error);
   return { Status: false, message: `Error processing PDF: ${error.message}` };
@@ -228,7 +242,8 @@ export async function downloadPdfFromS3(
   key: string,
   outputPath: string
 ): Promise<{ message: string; status: boolean }> {
-
+  
+  try {
   const s3 = new S3Client({
     region: "us-east-1",
     endpoint: "http://localhost:4566",
@@ -239,7 +254,6 @@ export async function downloadPdfFromS3(
     forcePathStyle: true
   });
 
-  try {
     const command = new GetObjectCommand({
       Bucket: process.env.S3_BUCKET_NAME,
       Key: key
@@ -263,20 +277,15 @@ export async function downloadPdfFromS3(
         status: true
       };
     } else {
-      return {
-        message: "Error: S3 response Body is not a Node.js Readable stream.",
-        status: false
-      };
+      throw new Error("Response body is not a readable stream");
     }
   } catch (error) {
     console.error("Error downloading from S3:", error);
-    return {
-      message: `Exception during S3 download: ${error}`,
-      status: false
-    };
+     throw new Error(`Error downloading PDF from S3: ${error}`);
   }
 }
 export async function deletePdfFromS3(key: string): Promise< { message: string; status: boolean }> {
+  try {
   const s3 = new S3Client({
     region: "us-east-1",
     endpoint: "http://localhost:4566",
@@ -286,22 +295,17 @@ export async function deletePdfFromS3(key: string): Promise< { message: string; 
     },
     forcePathStyle: true
   });
-  try {
     const deleteCommand = new DeleteObjectCommand({
       Bucket: process.env.S3_BUCKET_NAME,
       Key: key
     });
     await s3.send(deleteCommand);
-    console.log(`PDF with key ${key} deleted successfully from S3.`);
     return {
       message: `PDF with key ${key} deleted successfully from S3.`,
       status: true
     }
   } catch (error) {
     console.error(`Error deleting PDF with key ${key} from S3:`, error);
-    return {
-      message: `Error deleting PDF with key ${key} from S3: ${error}`,
-      status: false
-    }
+     throw new Error(`Error deleting PDF from S3: ${error}`);
   }
 }

@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String    @id @default(uuid())
+  name        String
+  email       String    @unique
+  createdAt   DateTime  @default(now())
+  googleID    String    @unique
+  tokenExpiry DateTime?
+  updatedAt   DateTime  @updatedAt
+  limit       Int?      @default(5)
+  Chat        Chat[]
+
+  @@index([id, email])
+}
+
+model Chat {
+  id             String    @id @default(uuid())
+  userId         String
+  type           TYPE
+  topic          String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  collectionName String?
+  status         status    @default(WAITING)
+  user           User      @relation(fields: [userId], references: [id])
+  messages       Message[]
+
+  @@index([id, userId])
+}
+
+model URL {
+  id             String   @id @default(uuid())
+  url            String   @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  collectionName String
+
+  @@index([id, url])
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  chatId    String
+  content   String
+  Sender    Sender
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  chat      Chat     @relation(fields: [chatId], references: [id])
+
+  @@index([id, chatId])
+}
+
+enum status {
+  WAITING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum TYPE {
+  URL
+  PDF
+}
+
+enum Sender {
+  USER
+  ASSISTANT
+  SYSTEM
+}
