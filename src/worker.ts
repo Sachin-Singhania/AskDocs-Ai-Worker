@@ -113,8 +113,10 @@ function getDocumentsFromContent(contentlist: { [key: string]: string }): Docume
 async function getCollectionName(web_url:string): Promise<string> {
   try {
     const systemPrompt = `You are an Ai collection name sorter for qdrant. Give the collection name for the given url source.
-    RULES:
-    - The response should be in JSON format with a single key "content" and the value should be the collection name.
+   RULES:
+  - Only output valid JSON in the following format:
+  {"content": "<collection-name>"}
+  - Do NOT include any extra text, explanations, or greetings. Only output the JSON.
     Example: 
       ME: "https://chaidocs.vercel.app/youtube/chai-aur-devops/nginx-rate-limiting/",
       You : {"content" : "chaidocs" }
