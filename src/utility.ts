@@ -1,6 +1,6 @@
-
 import { prisma } from "./prisma";
-import { Status } from "./types";
+import { Status, TYPE_PDF, TYPE_URL } from "./types";
+
 // export function loadobject(urlObj:URL): Document[] {
 //   const file = fs.readFileSync(urlObj.hostname + ".json", "utf-8");
 //   const jsonData :{
@@ -15,25 +15,36 @@ import { Status } from "./types";
 //   return docs;
 // }
 
-
-
-export async function processUpdate(chatId: string, status: Status, collectionName?: string) {
+export async function processUpdate( update: TYPE_URL | TYPE_PDF ) {
     try {
-            const chat=await prisma.chat.update({
-                where: {
-                    id: chatId
-                },
-                data: {
-                    status,
-                    ...(collectionName && { collectionName })
-                },select:{
-                    userId:true,
+            const result = await prisma.$transaction(async (tx) => {
+                const chat = await tx.chat.update({
+                    where: {
+                        id: update.chatId
+                    },
+                    data: {
+                        status: update.status,
+                        ...(update.collectionName && { collectionName:update.collectionName })
+                    },
+                    select: {
+                        userId: true,
+                    }
+                });
+
+                if (update.status == "COMPLETED" && update.type === 'URL' && update.collectionName) {
+                    await tx.uRL.create({
+                        data: {
+                            url: update.chatId, 
+                            collectionName:update.collectionName,
+                        },
+                    });
                 }
+                return chat;
             });
-            if (status === Status.FAILED) {
+            if (update.status === Status.FAILED) {
                 await prisma.user.update({
                     where:{
-                        id : chat.userId
+                        id : result.userId
                     },data:{
                         limit: {
                             increment : 1
@@ -41,9 +52,9 @@ export async function processUpdate(chatId: string, status: Status, collectionNa
                     }
                 });
             }
-            console.log (`Updated chat ${chatId} to ${status}`);
+            console.log (`Updated chat ${update.chatId} to ${status}`);
     } catch (error) {
-        console.error (`Error updating chat ${chatId} to ${status}: ${error}`);
+        console.error (`Error updating chat ${update.chatId} to ${update.status}: ${error}`);
     }
 }
 

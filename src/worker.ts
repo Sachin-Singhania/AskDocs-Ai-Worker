@@ -12,7 +12,7 @@ import { configDotenv } from "dotenv";
 import { Readable } from "stream";
 import { dirname } from "path";
 import { processUpdate } from "./utility";
-import { Status } from "./types";
+import { Status, TYPE_PDF, TYPE_URL } from "./types";
 configDotenv();
 if (!process.env.APIKEY) {
   throw new Error("APIKEY is not set in the environment variables");
@@ -167,7 +167,11 @@ async function storeToqdrant(collectionName:string, documentArray:Document<Recor
 }
 export async function run(url:string,chatId:string) {
   try {
-    await processUpdate(chatId, "PROCESSING" as Status);
+    const urlupload:TYPE_URL={
+                chatId,
+                 status: "PROCESSING" as Status,
+              }
+    await processUpdate(urlupload);
 
     const contentlist = await Getalldocsdata(url);
     // const docs = loadobject(uri);
@@ -195,7 +199,11 @@ export async function run(url:string,chatId:string) {
 
 export async function pdfUPLOAD(name:string,path:string,key:string,chatId:string) {
  try {
-    await processUpdate(chatId, "PROCESSING" as Status);
+  const PDF:TYPE_PDF= {
+              chatId,
+             status: "PROCESSING" as Status,
+            }
+    await processUpdate(PDF);
    
    const outputPath = `./temp/${name+key}`;
    const res=  await downloadPdfFromS3(key,outputPath);
