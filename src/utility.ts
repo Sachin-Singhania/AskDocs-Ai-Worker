@@ -52,7 +52,7 @@ export async function processUpdate( update: TYPE_URL | TYPE_PDF ) {
                     }
                 });
             }
-            console.log (`Updated chat ${update.chatId} to ${status}`);
+            console.log (`Updated chat ${update.chatId} to ${update.status}`);
     } catch (error) {
         console.error (`Error updating chat ${update.chatId} to ${update.status}: ${error}`);
     }
