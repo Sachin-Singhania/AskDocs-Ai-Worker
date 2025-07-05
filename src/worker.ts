@@ -236,12 +236,8 @@ export async function pdfUPLOAD(name:string,path:string,key:string,chatId:string
     }
   )
   
-  fs.unlinkSync(outputPath);
-  console.log(`Temporary file ${outputPath} deleted successfully.`);
   
-  const {message}= await deletePdfFromS3(key);
-  console.log(message);
-  return { Status: true, message: `PDF processed and stored successfully in Qdrant collection: chai-docs` ,collectionName};
+  return { Status: true, message: `PDF processed and stored successfully in Qdrant collection: chai-docs` ,collectionName,outputPath};
  } catch (error: any) {
   console.error(error);
   return { Status: false, message: `Error processing PDF: ${error.message}` };
