@@ -198,6 +198,7 @@ export async function run(url:string,chatId:string) {
 
 
 export async function pdfUPLOAD(name:string,path:string,key:string,chatId:string) {
+  const outputPath = `./temp/${name+key}`;
  try {
   const PDF:TYPE_PDF= {
               chatId,
@@ -205,7 +206,6 @@ export async function pdfUPLOAD(name:string,path:string,key:string,chatId:string
             }
     await processUpdate(PDF);
    
-   const outputPath = `./temp/${name+key}`;
    const res=  await downloadPdfFromS3(key,outputPath);
    console.log(res);
    
@@ -240,7 +240,7 @@ export async function pdfUPLOAD(name:string,path:string,key:string,chatId:string
   return { Status: true, message: `PDF processed and stored successfully in Qdrant collection: chai-docs` ,collectionName,outputPath};
  } catch (error: any) {
   console.error(error);
-  return { Status: false, message: `Error processing PDF: ${error.message}` };
+  return { Status: false, message: `Error processing PDF: ${error.message}`, outputPath};
  } 
 
 }
