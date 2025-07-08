@@ -39,19 +39,19 @@ export async function processUpdate( update: TYPE_URL | TYPE_PDF ) {
                         },
                     });
                 }
+                if (update.status === Status.FAILED) {
+                    await prisma.user.update({
+                        where:{
+                            id : result.userId
+                        },data:{
+                            limit: {
+                                increment : 1
+                            }
+                        }
+                    });
+                }
                 return chat;
             });
-            if (update.status === Status.FAILED) {
-                await prisma.user.update({
-                    where:{
-                        id : result.userId
-                    },data:{
-                        limit: {
-                            increment : 1
-                        }
-                    }
-                });
-            }
             console.log (`Updated chat ${update.chatId} to ${update.status}`);
     } catch (error) {
         console.error (`Error updating chat ${update.chatId} to ${update.status}: ${error}`);

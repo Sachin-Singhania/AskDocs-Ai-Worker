@@ -1,7 +1,6 @@
 import { chromium } from "playwright";
 import fs, { createWriteStream, mkdirSync } from "fs";
 import {  GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-import { QdrantClient } from '@qdrant/js-client-rest';
 import { QdrantVectorStore } from "@langchain/qdrant";
 import { GoogleGenerativeAI as GoogleGenAI } from "@google/generative-ai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
