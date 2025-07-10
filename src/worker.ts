@@ -249,17 +249,17 @@ export async function downloadPdfFromS3(
 ): Promise<{ message: string; status: boolean }> {
   
   try {
-  const s3 = new S3Client({
-    region: "us-east-1",
-    endpoint: "http://localhost:4566",
+   const s3 = new S3Client({
+    region:  process.env.S3_REGION,
+    endpoint: process.env.S3_ENDPOINT || "http://localhost:4566",
     credentials: {
-      accessKeyId: "test",
-      secretAccessKey: "test"
+      accessKeyId:  process.env.S3_ACCESS_KEY_ID || "test",
+      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "test", 
     },
     forcePathStyle: true
   });
 
-    const command = new GetObjectCommand({
+  const command = new GetObjectCommand({
       Bucket: process.env.S3_BUCKET_NAME,
       Key: key
     });
@@ -292,11 +292,11 @@ export async function downloadPdfFromS3(
 export async function deletePdfFromS3(key: string): Promise< { message: string; status: boolean }> {
   try {
   const s3 = new S3Client({
-    region: "us-east-1",
-    endpoint: "http://localhost:4566",
+    region:  process.env.S3_REGION,
+    endpoint: process.env.S3_ENDPOINT || "http://localhost:4566",
     credentials: {
-      accessKeyId: "test",
-      secretAccessKey: "test"
+      accessKeyId:  process.env.S3_ACCESS_KEY_ID || "test",
+      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "test", 
     },
     forcePathStyle: true
   });
