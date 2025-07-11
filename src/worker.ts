@@ -12,6 +12,7 @@ import { Readable } from "stream";
 import { dirname } from "path";
 import { processUpdate } from "./utility";
 import { Status, TYPE_PDF, TYPE_URL } from "./types";
+import { QdrantClient } from "@qdrant/js-client-rest";
 configDotenv();
 if (!process.env.APIKEY) {
   throw new Error("APIKEY is not set in the environment variables");
@@ -21,6 +22,7 @@ const embeddings = new GoogleGenerativeAIEmbeddings({
   modelName: 'text-embedding-004',
   apiKey: process.env.APIKEY,
 })
+const client = new QdrantClient({ url: process.env.QDRANT_URL ,apiKey: process.env.QDRANT_API_KEY});
 
 async function Getalldocsdata(url:string) {
   const contentlist : {
@@ -154,7 +156,7 @@ async function storeToqdrant(collectionName:string, documentArray:Document<Recor
         await QdrantVectorStore.fromDocuments(
         documentArray,
         embeddings,
-        {url: 'http://localhost:6333',
+        {client,
         collectionName,
         }
        )
@@ -196,7 +198,7 @@ export async function run(url:string,chatId:string) {
 
 
 
-export async function pdfUPLOAD(name:string,path:string,key:string,chatId:string) {
+export async function pdfUPLOAD(name:string,key:string,chatId:string) {
   const outputPath = `./temp/${name+key}`;
  try {
   const PDF:TYPE_PDF= {
@@ -230,7 +232,7 @@ export async function pdfUPLOAD(name:string,path:string,key:string,chatId:string
     await QdrantVectorStore.fromDocuments(
       splitDocs,
       embeddings,
-    {url: process.env.QDRANT_URL ,
+    {client ,
     collectionName,
     }
   )
@@ -249,12 +251,11 @@ export async function downloadPdfFromS3(
 ): Promise<{ message: string; status: boolean }> {
   
   try {
-   const s3 = new S3Client({
-    region:  process.env.S3_REGION,
-    endpoint: process.env.S3_ENDPOINT || "http://localhost:4566",
+const s3 = new S3Client({
+    region:  process.env.S3_REGION || "ap-south-1",
     credentials: {
       accessKeyId:  process.env.S3_ACCESS_KEY_ID || "test",
-      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "test", 
+      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY  || "test", 
     },
     forcePathStyle: true
   });
@@ -292,11 +293,10 @@ export async function downloadPdfFromS3(
 export async function deletePdfFromS3(key: string): Promise< { message: string; status: boolean }> {
   try {
   const s3 = new S3Client({
-    region:  process.env.S3_REGION,
-    endpoint: process.env.S3_ENDPOINT || "http://localhost:4566",
+    region:  process.env.S3_REGION || "ap-south-1",
     credentials: {
       accessKeyId:  process.env.S3_ACCESS_KEY_ID || "test",
-      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "test", 
+      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY  || "test", 
     },
     forcePathStyle: true
   });

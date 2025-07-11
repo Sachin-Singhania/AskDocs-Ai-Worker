@@ -2,7 +2,7 @@ import { TYPE } from "./generated/prisma"
 
 export type URL_TASK ={ url: string, type:"URL" , chatId:string }
 
-export type PDF_TASK ={ name : string , path: string, type:"PDF",key:string ,chatId:string }
+export type PDF_TASK ={ name : string , type:"PDF",key:string ,chatId:string }
 export enum Status {
       PROCESSING = "PROCESSING",
       COMPLETED = "COMPLETED",
