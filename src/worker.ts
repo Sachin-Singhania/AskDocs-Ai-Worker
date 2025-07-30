@@ -97,7 +97,7 @@ function filterlinks(links: string[], urlObj: URL):string[] {
   //check from gpt if guessedRootPath is correct or not
   const filteredLinks = links.filter(link => {
     const url = new URL(link);
-    return url.pathname.startsWith(`/${guessedRootPath[0]}`);
+    return url.pathname.startsWith(`${guessedRootPath[0]}`);
   });
   console.log("FILTERED LINKS", filteredLinks);
   return filteredLinks;
