@@ -1,0 +1,16 @@
+version: "3.8"
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis_server
+    ports:
+      - "6379:6379"
+
+  worker:
+    build: .
+    container_name: redis_worker
+    depends_on:
+      - redis
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
