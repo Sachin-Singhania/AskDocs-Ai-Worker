@@ -1,4 +1,4 @@
-import { TYPE } from "./generated/prisma"
+import { TYPE } from "@prisma/client"
 
 export type URL_TASK ={ url: string, type:"URL" , chatId:string }
 

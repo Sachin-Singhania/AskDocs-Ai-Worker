@@ -1,10 +1,10 @@
-import { chromium } from "playwright";
 import fs, { createWriteStream, mkdirSync } from "fs";
-import {  GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { QdrantVectorStore } from "@langchain/qdrant";
-import { GoogleGenerativeAI as GoogleGenAI } from "@google/generative-ai";
+import { QdrantClient } from "@qdrant/js-client-rest";
+import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
-import { S3Client, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client,  } from "@aws-sdk/client-s3";
 import { Document } from "@langchain/core/documents";
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { configDotenv } from "dotenv";
@@ -12,12 +12,14 @@ import { Readable } from "stream";
 import { dirname } from "path";
 import { processUpdate } from "./utility";
 import { Status, TYPE_PDF, TYPE_URL } from "./types";
-import { QdrantClient } from "@qdrant/js-client-rest";
+import axios from "axios";
+import * as cheerio from "cheerio";
+import { GetObjectCommand,DeleteObjectCommand } from "@aws-sdk/client-s3";
 configDotenv();
 if (!process.env.APIKEY) {
   throw new Error("APIKEY is not set in the environment variables");
 }
-const ai = new GoogleGenAI(process.env.APIKEY as string);
+const ai = new GoogleGenAI({apiKey:process.env.APIKEY as string});
 const embeddings = new GoogleGenerativeAIEmbeddings({
   modelName: 'text-embedding-004',
   apiKey: process.env.APIKEY,
@@ -29,44 +31,80 @@ async function Getalldocsdata(url:string) {
     [key: string]: string;
   } = {};
   const urlObj = new URL(url);
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-  await page.goto(url, { waitUntil: "domcontentloaded" });
-  try {
-    await page.$eval("body", el => el.innerText);
-    const url = page.url();
-    const allLinks = await page.$$eval("a", (anchors, base) =>
-      Array.from(new Set(anchors
-        .map(a => a.getAttribute("href"))
-        .filter(href =>
+  // const browser = await chromium.launch({headless:true});
+  // const page = await browser.newPage();
+  // await page.goto(url, { waitUntil: "domcontentloaded" });
+   try {
+    const { data: html } = await axios.get(url);
+    const $ = cheerio.load(html);
+    const allLinks = $("a")
+      .map((_, el) => $(el).attr("href"))
+      .get()
+      .filter(
+        (href) =>
           href &&
           !href.startsWith("#") &&
           !href.startsWith("javascript:")
-        )
-        .map(href => {
-          const fullUrl = new URL(href as string, base);
-          fullUrl.hash = "";
-          return fullUrl.href;
-        })
-      )),
-      page.url());
-      const filteredLinks = filterlinks(allLinks, urlObj);
-      for (let i = 0; i < filteredLinks.length; i++) {
-        const link = filteredLinks[i];
-        await page.goto(link, { waitUntil: "domcontentloaded" });
-        const content = await page.$eval("body", el => el.innerText);
-        contentlist[link] = content;
-      }
-    } catch (error) {
-      console.log(error);
-      throw new Error(`Error fetching content from ${urlObj.hostname}: ${error}`);
-    }
-    await browser.close();
+      )
+      .map((href) => {
+        const fullUrl = new URL(href!, urlObj.origin);
+        fullUrl.hash = ""; 
+        return fullUrl.href;
+      });
 
-    // fs.writeFileSync(urlObj.hostname + ".json", JSON.stringify(contentlist, null, 2)); COST IS HIGH SO DIRECTLY VECTORIZE IT
+    const uniqueLinks = Array.from(new Set(allLinks));
+
+    const filteredLinks = filterlinks(uniqueLinks, urlObj);
+
+    for (let i = 0; i < filteredLinks.length; i++) {
+      const link = filteredLinks[i];
+      const { data: pageHtml } = await axios.get(link);
+      const $page = cheerio.load(pageHtml);
+      const content = $page("body").text().trim();
+      contentlist[link] = content;
+    }
+
     return contentlist;
-  
+  } catch (error) {
+    console.error(error);
+    throw new Error(`Error fetching content from ${urlObj.hostname}: ${error}`);
+  }
 }
+//   try {
+//     await page.$eval("body", el => el.innerText);
+//     const url = page.url();
+//     const allLinks = await page.$$eval("a", (anchors, base) =>
+//       Array.from(new Set(anchors
+//         .map(a => a.getAttribute("href"))
+//         .filter(href =>
+//           href &&
+//           !href.startsWith("#") &&
+//           !href.startsWith("javascript:")
+//         )
+//         .map(href => {
+//           const fullUrl = new URL(href as string, base);
+//           fullUrl.hash = "";
+//           return fullUrl.href;
+//         })
+//       )),
+//       page.url());
+//       const filteredLinks = filterlinks(allLinks, urlObj);
+//       for (let i = 0; i < filteredLinks.length; i++) {
+//         const link = filteredLinks[i];
+//         await page.goto(link, { waitUntil: "domcontentloaded" });
+//         const content = await page.$eval("body", el => el.innerText);
+//         contentlist[link] = content;
+//       }
+//     } catch (error) {
+//       console.log(error);
+//       throw new Error(`Error fetching content from ${urlObj.hostname}: ${error}`);
+//     }
+//     await browser.close();
+
+//     // fs.writeFileSync(urlObj.hostname + ".json", JSON.stringify(contentlist, null, 2)); COST IS HIGH SO DIRECTLY VECTORIZE IT
+//     return contentlist;
+  
+// }
 function filterlinks(links: string[], urlObj: URL):string[] {
   const pathCounts: { [key: string]: number } = {};
   links.forEach(link => {
@@ -97,7 +135,9 @@ function filterlinks(links: string[], urlObj: URL):string[] {
   //check from gpt if guessedRootPath is correct or not
   const filteredLinks = links.filter(link => {
     const url = new URL(link);
-    return url.pathname.startsWith(`${guessedRootPath[0]}`);
+    let a = url.pathname.startsWith(`${guessedRootPath[0]}`)
+    let b = url.pathname.startsWith(`/${guessedRootPath[0]}`)
+    return a || b;
   });
   console.log("FILTERED LINKS", filteredLinks);
   return filteredLinks;
@@ -127,23 +167,24 @@ async function getCollectionName(web_url:string): Promise<string> {
       You : {"content" : "mozilla" }
   
     `
-   const model = ai.getGenerativeModel({
+   const response = await ai.models.generateContent({
+      contents: [{ role: "user", parts: [{ text: web_url }] }],
     model: "gemini-2.0-flash",
-    generationConfig: {
+    config: {
       temperature: 1.5,
       responseMimeType: "application/json",
+      systemInstruction: {
+        role: "system",
+        parts: [{ text: systemPrompt }],
+      }
     },
-    systemInstruction: {
-      role: "system",
-      parts: [{ text: systemPrompt }],
-    }
   });
-    const {response} = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: web_url }] }],
-  });
+  if(!response.text){
+    throw new Error("No response from AI")
+  }
     const final:{
       content: string;
-    } = JSON.parse(response.text().trim());
+    } = JSON.parse(response.text.trim());
     console.log("RESPONSE", final.content);
     return final.content;
   } catch (error) {

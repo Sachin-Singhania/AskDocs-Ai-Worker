@@ -1,8 +1,19 @@
+# Dependency directories
 node_modules
-npm-debug.log
-Dockerfile
-.dockerignore
+dist
+
+# Git
 .git
 .gitignore
-*.md
-.env
+
+# Environment variables
+.env*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker
+Dockerfile
+.dockerignore

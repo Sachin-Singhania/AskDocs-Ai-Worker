@@ -1,20 +1,24 @@
-FROM node:22.12.0-alpine
+FROM node:22.12.0-alpine AS base
+WORKDIR /app
 
-WORKDIR /usr/src/app
+COPY package*.json ./
 
-COPY package* .
-COPY ./prisma .
-    
-RUN npm install
-RUN npx prisma generate
+FROM base AS builder
+RUN npm ci
 
+COPY prisma ./prisma
 COPY . .
 
+RUN npx prisma generate
+RUN npm run build
+RUN npm prune --production
+
+
+FROM base AS final
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
 EXPOSE 3000
-
-RUN npx tsc --build
-
-RUN rm -rf src/
-RUN rm -rf tsconfig.json
-
-CMD ["node", "dist/index.js" ]
+CMD ["node", "dist/index.js"]
